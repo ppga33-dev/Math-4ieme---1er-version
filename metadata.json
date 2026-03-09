@@ -1,0 +1,8 @@
+{
+  "name": "MathÉlite 4ième",
+  "description": "Une plateforme d'apprentissage interactive pour maîtriser le programme de mathématiques de 4ième avec l'aide de l'IA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
