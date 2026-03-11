@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { MathTopic } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, BookOpen, Hash, Info } from 'lucide-react';
+import { X, BookOpen, Hash, Info, Sparkles, Loader2 } from 'lucide-react';
 import Breadcrumbs from './Breadcrumbs';
+import { getCheatSheetFormulas } from '../services/geminiService';
 
 interface CheatSheetModalProps {
   topic: MathTopic;
@@ -12,6 +13,21 @@ interface CheatSheetModalProps {
 }
 
 const CheatSheetModal: React.FC<CheatSheetModalProps> = ({ topic, onClose, breadcrumbs }) => {
+  const [aiFormulas, setAiFormulas] = useState<string[]>([]);
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  const handleEnrich = useCallback(async () => {
+    setIsEnriching(true);
+    try {
+      const formulas = await getCheatSheetFormulas(topic.title);
+      setAiFormulas(formulas);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsEnriching(false);
+    }
+  }, [topic.title]);
+
   if (!topic.cheatSheet) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -56,9 +72,19 @@ const CheatSheetModal: React.FC<CheatSheetModalProps> = ({ topic, onClose, bread
         <div className="p-8 space-y-8">
           {/* Formulas */}
           <section className="space-y-4">
-            <div className="flex items-center gap-2 text-orange-600">
-              <Hash size={18} />
-              <h3 className="text-xs font-black uppercase tracking-widest">Formules Clés</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-orange-600">
+                <Hash size={18} />
+                <h3 className="text-xs font-black uppercase tracking-widest">Formules Clés</h3>
+              </div>
+              <button 
+                onClick={handleEnrich}
+                disabled={isEnriching}
+                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 transition-colors disabled:opacity-50"
+              >
+                {isEnriching ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                Enrichir avec l'IA
+              </button>
             </div>
             <div className="grid gap-3">
               {topic.cheatSheet.formulas.map((formula, idx) => (
@@ -66,6 +92,18 @@ const CheatSheetModal: React.FC<CheatSheetModalProps> = ({ topic, onClose, bread
                   <span className="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-400">{idx + 1}</span>
                   {formula}
                 </div>
+              ))}
+              {aiFormulas.map((formula, idx) => (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  key={`ai-${idx}`} 
+                  className="bg-gradient-to-r from-indigo-50 to-violet-50 p-4 rounded-2xl border-2 border-indigo-200/50 font-mono text-sm text-indigo-800 flex items-center gap-3 shadow-sm shadow-indigo-100/50 relative group"
+                >
+                  <div className="absolute -top-2 -right-2 bg-indigo-600 text-[8px] font-black text-white px-2 py-0.5 rounded-full uppercase tracking-tighter shadow-sm">IA</div>
+                  <Sparkles size={14} className="text-indigo-500 shrink-0 animate-pulse" />
+                  <span className="flex-1">{formula}</span>
+                </motion.div>
               ))}
             </div>
           </section>

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { MathTopic } from '../types';
-import { getMathExplanation, getMathExample } from '../services/geminiService';
+import { getMathExplanation, getMathExample, getEducationalVideos } from '../services/geminiService';
 import { useMathAudio } from '../hooks/useMathAudio';
 import Breadcrumbs from './Breadcrumbs';
-import { Download, CheckCircle, Loader2 } from 'lucide-react';
+import { Download, CheckCircle, Loader2, PlayCircle, ExternalLink, Youtube } from 'lucide-react';
 
 interface TopicDetailModalProps {
   topic: MathTopic;
@@ -12,9 +12,10 @@ interface TopicDetailModalProps {
   onStartExercises: () => void;
   onStartLesson: () => void;
   onStartGame: () => void;
+  onStartQuiz: () => void;
   onDownload?: (topic: MathTopic) => void;
   isDownloading?: boolean;
-  initialView?: 'intro' | 'example' | 'applications';
+  initialView?: 'intro' | 'example' | 'applications' | 'videos';
   breadcrumbs?: any[];
 }
 
@@ -24,29 +25,34 @@ const TopicDetailModal: React.FC<TopicDetailModalProps> = memo(({
   onStartExercises, 
   onStartLesson, 
   onStartGame,
+  onStartQuiz,
   onDownload,
   isDownloading,
   initialView = 'intro', 
   breadcrumbs 
 }) => {
-  const [view, setView] = useState<'intro' | 'example' | 'applications'>(initialView);
+  const [view, setView] = useState<'intro' | 'example' | 'applications' | 'videos'>(initialView);
   const [content, setContent] = useState('');
+  const [videos, setVideos] = useState<{title: string, url: string, thumbnail: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const { isReading, isGenerating, playbackSpeed, play, stop, updateSpeed } = useMathAudio();
   const isMounted = useRef(true);
 
-  const fetchData = useCallback(async (targetView: 'intro' | 'example' | 'applications') => {
+  const fetchData = useCallback(async (targetView: 'intro' | 'example' | 'applications' | 'videos') => {
     if (targetView === 'applications') return;
     stop();
     setLoading(true);
-    let text = '';
     try {
       if (targetView === 'intro') {
-        text = await getMathExplanation(topic.title, "Produis un résumé de cours ultra-concis avec les points clés et les définitions essentielles de 4ième.");
+        const text = await getMathExplanation(topic.title, "Produis un résumé de cours ultra-concis avec les points clés et les définitions essentielles de 4ième.");
+        if (isMounted.current) setContent(text || '');
       } else if (targetView === 'example') {
-        text = await getMathExample(topic.title);
+        const text = await getMathExample(topic.title);
+        if (isMounted.current) setContent(text || '');
+      } else if (targetView === 'videos') {
+        const videoList = await getEducationalVideos(topic.title);
+        if (isMounted.current) setVideos(videoList);
       }
-      if (isMounted.current) setContent(text || '');
     } catch (err) {
       console.error("Fetch error:", err);
     } finally {
@@ -165,6 +171,50 @@ const TopicDetailModal: React.FC<TopicDetailModalProps> = memo(({
               <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
               <p className="text-slate-600 font-black text-xs uppercase tracking-widest animate-pulse">Chargement...</p>
             </div>
+          ) : view === 'videos' ? (
+            <div className="space-y-6 animate-in fade-in duration-500">
+              <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
+                <span className="bg-red-100 p-2 rounded-xl">🎬</span>
+                Vidéos Éducatives
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {videos.map((video, i) => (
+                  <a 
+                    key={i} 
+                    href={video.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="group bg-white rounded-3xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-red-100 transition-all flex flex-col"
+                  >
+                    <div className="aspect-video relative overflow-hidden bg-slate-900">
+                      <img 
+                        src={video.thumbnail} 
+                        alt={video.title} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-80 group-hover:opacity-100"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-125 transition-transform">
+                          <PlayCircle size={24} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 flex-1 flex flex-col justify-between">
+                      <h5 className="font-bold text-slate-800 text-sm line-clamp-2 mb-2 group-hover:text-red-600 transition-colors">{video.title}</h5>
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <span className="flex items-center gap-1"><Youtube size={12} /> YouTube</span>
+                        <ExternalLink size={12} />
+                      </div>
+                    </div>
+                  </a>
+                ))}
+                {videos.length === 0 && !loading && (
+                  <div className="col-span-full text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <p className="text-slate-400 font-bold italic">Aucune vidéo trouvée pour le moment. Réessaie plus tard !</p>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : view === 'applications' ? (
             <div className="space-y-6 animate-in fade-in duration-500">
               <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-3">
@@ -222,6 +272,13 @@ const TopicDetailModal: React.FC<TopicDetailModalProps> = memo(({
             >
               🌍 Appli.
             </button>
+            <button 
+              type="button"
+              onClick={() => setView('videos')}
+              className={`flex-1 font-black py-4 px-2 rounded-xl transition-all border-2 text-[9px] uppercase tracking-widest ${view === 'videos' ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-100' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+            >
+              🎬 Vidéos
+            </button>
           </div>
           <div className="flex flex-1 gap-2">
             <button 
@@ -237,6 +294,13 @@ const TopicDetailModal: React.FC<TopicDetailModalProps> = memo(({
               className="flex-1 bg-blue-600 text-white font-black py-4 px-4 rounded-xl hover:shadow-xl transition-all text-[9px] uppercase tracking-widest shadow-lg shadow-blue-100"
             >
               📖 Leçon
+            </button>
+            <button 
+              type="button"
+              onClick={() => { stop(); onStartQuiz(); }}
+              className="flex-1 bg-orange-500 text-white font-black py-4 px-4 rounded-xl hover:bg-orange-600 transition-all text-[9px] uppercase tracking-widest shadow-lg shadow-orange-100"
+            >
+              ⚡ Quiz
             </button>
           </div>
           {topic.gameConfig && (

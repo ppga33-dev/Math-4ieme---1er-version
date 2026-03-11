@@ -38,7 +38,21 @@ export const useMathAudio = () => {
 
     setIsGenerating(true);
     try {
-      const base64Audio = await generateLessonSpeech(text);
+      // Détecter le ton approprié basé sur le contenu
+      let tone: 'encouraging' | 'enthusiastic' | 'patient' | 'academic' = 'academic';
+      const lowerText = text.toLowerCase();
+      
+      if (lowerText.includes('bravo') || lowerText.includes('félicitations') || lowerText.includes('excellent') || lowerText.includes('parfait')) {
+        tone = 'enthusiastic';
+      } else if (lowerText.includes('attention') || lowerText.includes('erreur') || lowerText.includes('dommage') || lowerText.includes('réessaie')) {
+        tone = 'patient';
+      } else if (lowerText.includes('définition') || lowerText.includes('formule') || lowerText.includes('théorème') || lowerText.length > 300) {
+        tone = 'academic';
+      } else {
+        tone = 'encouraging';
+      }
+
+      const base64Audio = await generateLessonSpeech(text, tone);
       if (!base64Audio) return;
 
       if (!audioContextRef.current) {

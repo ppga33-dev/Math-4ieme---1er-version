@@ -32,17 +32,50 @@ const LoadingFallback = () => (
 const App: React.FC = () => {
   const [stats, setStats] = useState<UserStats>(() => {
     const saved = localStorage.getItem('mathelite_stats');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return { ...parsed, history: parsed.history.map((h: any) => ({ ...h, date: new Date(h.date) })) };
-    }
-    return {
+    const defaultStats: UserStats = {
       completedExercises: 0,
       streak: 1,
       totalPoints: 0,
       topicMastery: {},
-      history: []
+      history: [],
+      lastVisitDate: new Date().toDateString()
     };
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const history = (parsed.history || []).map((h: any) => ({ ...h, date: new Date(h.date) }));
+        
+        // Streak logic
+        const today = new Date().toDateString();
+        const lastVisit = parsed.lastVisitDate;
+        let newStreak = parsed.streak || 1;
+
+        if (lastVisit && lastVisit !== today) {
+          const lastDate = new Date(lastVisit);
+          const currentDate = new Date(today);
+          const diffTime = Math.abs(currentDate.getTime() - lastDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays === 1) {
+            newStreak += 1;
+          } else if (diffDays > 1) {
+            newStreak = 1;
+          }
+        }
+
+        return { 
+          ...parsed, 
+          history, 
+          streak: newStreak, 
+          lastVisitDate: today 
+        };
+      } catch (e) {
+        console.error("Failed to parse stats", e);
+        return defaultStats;
+      }
+    }
+    return defaultStats;
   });
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'history' | 'search' | 'profile'>('dashboard');
@@ -90,7 +123,7 @@ const App: React.FC = () => {
     }, {} as Record<string, MathTopic[]>);
   }, [topics]);
 
-  const handleTopicClick = useCallback((topic: MathTopic, initialView: 'intro' | 'example' | 'exercises' | 'lesson' | 'cheatSheet' | 'game' = 'intro') => {
+  const handleTopicClick = useCallback((topic: MathTopic, initialView: 'intro' | 'example' | 'exercises' | 'lesson' | 'cheatSheet' | 'game' | 'quiz' = 'intro') => {
     setActiveTopic(topic);
     if (initialView === 'exercises') {
       setShowExercises(true);
@@ -102,6 +135,8 @@ const App: React.FC = () => {
       setShowCheatSheet(true);
     } else if (initialView === 'game') {
       setShowGame(true);
+    } else if (initialView === 'quiz') {
+      setShowQuiz(true);
     } else {
       setModalMode(initialView as 'intro' | 'example');
       setShowDetail(true);
@@ -577,6 +612,7 @@ const App: React.FC = () => {
             onStartExercises={() => { setShowDetail(false); setShowExercises(true); }} 
             onStartLesson={() => { setShowDetail(false); setShowLesson(true); }}
             onStartGame={() => { setShowDetail(false); setShowGame(true); }}
+            onStartQuiz={() => { setShowDetail(false); setShowQuiz(true); }}
             onDownload={handleDownloadTopic}
             isDownloading={downloadingTopicId === activeTopic.id}
             breadcrumbs={getBreadcrumbs(activeTopic)}

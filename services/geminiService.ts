@@ -109,11 +109,16 @@ export const searchMathResources = async (query: string, activeFilters: string[]
   }
 };
 
-export const generateLessonSpeech = async (text: string) => {
+export const generateLessonSpeech = async (text: string, tone: 'encouraging' | 'enthusiastic' | 'patient' | 'academic' = 'encouraging') => {
   try {
+    let toneInstruction = "de manière naturelle et encourageante";
+    if (tone === 'enthusiastic') toneInstruction = "avec beaucoup d'enthousiasme et d'énergie, comme pour féliciter une grande réussite";
+    if (tone === 'patient') toneInstruction = "de manière très patiente, douce et rassurante, pour expliquer une erreur sans décourager";
+    if (tone === 'academic') toneInstruction = "de manière claire, posée et pédagogique, comme un professeur qui explique un concept important";
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Lis ce feedback de manière naturelle et encourageante : ${text}` }] }],
+      contents: [{ parts: [{ text: `Lis ce texte ${toneInstruction} : ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
@@ -171,6 +176,61 @@ export const getMathExample = async (topic: string) => {
     return "Exemple indisponible.";
   }
 };
+
+export const getCheatSheetFormulas = async (topic: string) => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `${SYSTEM_CONTEXT} Liste les formules mathématiques essentielles pour le sujet : ${topic}. 
+                 Donne uniquement les formules sous forme de liste, sans explication superflue. 
+                 Utilise LaTeX pour les formules si possible.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING }
+        }
+      }
+    });
+    return JSON.parse(response.text || '[]');
+  } catch (error) {
+    console.error("CheatSheet Error:", error);
+    return [];
+  }
+};
+
+export const getEducationalVideos = async (topic: string) => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Trouve des vidéos éducatives YouTube de qualité en français pour le sujet de mathématiques de 4ième : "${topic}". 
+                 Privilégie des chaînes comme "Yvan Monka", "L'Antisèche" ou "Maths et Tiques".`,
+      config: {
+        tools: [{ googleSearch: {} }]
+      },
+    });
+
+    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const videos = groundingChunks
+      .filter((chunk: any) => chunk.web && (chunk.web.uri.includes('youtube.com') || chunk.web.uri.includes('youtu.be')))
+      .map((chunk: any) => ({
+        title: chunk.web.title,
+        url: chunk.web.uri,
+        thumbnail: `https://img.youtube.com/vi/${extractYoutubeId(chunk.web.uri)}/mqdefault.jpg`
+      }));
+
+    return videos;
+  } catch (error) {
+    console.error("Video Search Error:", error);
+    return [];
+  }
+};
+
+function extractYoutubeId(url: string) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
 
 export function decodeBase64(base64: string) {
   const binaryString = atob(base64);

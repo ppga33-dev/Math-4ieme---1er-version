@@ -7,7 +7,7 @@ import { Download, CloudOff, CheckCircle, Loader2, Gamepad2 } from 'lucide-react
 
 interface TopicCardProps {
   topic: MathTopic;
-  onClick: (topic: MathTopic, initialView?: 'intro' | 'example' | 'exercises' | 'lesson' | 'cheatSheet' | 'game') => void;
+  onClick: (topic: MathTopic, initialView?: 'intro' | 'example' | 'exercises' | 'lesson' | 'cheatSheet' | 'game' | 'quiz') => void;
   onDownload?: (topic: MathTopic) => void;
   isDownloading?: boolean;
 }
@@ -41,15 +41,6 @@ const TopicCard: React.FC<TopicCardProps> = memo(({ topic, onClick, onDownload, 
                         group-hover:text-white transition-all duration-500 shadow-inner group-hover:shadow-xl group-hover:shadow-blue-200/50
                         group-hover:-rotate-3">
             {topic.icon}
-            {topic.gameConfig && (
-              <div 
-                className="absolute -top-2 -right-2 w-8 h-8 bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white group-hover:scale-110 transition-transform"
-                title={`Mini-jeu disponible : ${topic.gameConfig.title}`}
-                onClick={(e) => { e.stopPropagation(); onClick(topic, 'game'); }}
-              >
-                <Gamepad2 size={14} />
-              </div>
-            )}
           </div>
           
           <div className="flex items-center gap-2">
@@ -88,6 +79,16 @@ const TopicCard: React.FC<TopicCardProps> = memo(({ topic, onClick, onDownload, 
                 <span className="text-xl">🔊</span>
               )}
             </button>
+
+            {topic.gameConfig && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onClick(topic, 'game'); }}
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-600 text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-90 border border-indigo-500"
+                title={`Lancer le jeu : ${topic.gameConfig.title}`}
+              >
+                <Gamepad2 size={18} />
+              </button>
+            )}
 
             {onDownload && (
               <button
@@ -170,6 +171,18 @@ const TopicCard: React.FC<TopicCardProps> = memo(({ topic, onClick, onDownload, 
             className="py-3 px-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 shadow-lg shadow-blue-100 transition-all active:scale-95"
           >
             ✏️ Exercices
+          </button>
+          <button 
+            type="button"
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              // We need to handle quiz start in App.tsx, but TopicCard onClick only takes initialView.
+              // I'll add 'quiz' to the allowed views in TopicCardProps and App.tsx handleTopicClick.
+              onClick(topic, 'quiz'); 
+            }}
+            className="col-span-2 py-3 px-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-100 transition-all active:scale-95"
+          >
+            ⚡ Quiz IA Interactif
           </button>
         </div>
       </div>

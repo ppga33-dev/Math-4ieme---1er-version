@@ -67,6 +67,7 @@ export interface UserStats {
   topicMastery: Record<string, number>;
   history: ExerciseAttempt[];
   avatarUrl?: string;
+  lastVisitDate?: string;
 }
 
 export interface ChatMessage {

@@ -28,8 +28,14 @@ const Quiz: React.FC<QuizProps> = ({ onComplete, onClose }) => {
       : selectedTopic.title;
     
     const quizData = await generateQuiz(topicTitle);
-    if (quizData && quizData.length > 0) {
-      setQuestions(quizData);
+    if (quizData && Array.isArray(quizData) && quizData.length > 0) {
+      // Map data to match Exercise interface requirements (id, topicId)
+      const formattedQuestions: Exercise[] = quizData.map((q: any, index: number) => ({
+        ...q,
+        id: `standalone-quiz-${index}-${Date.now()}`,
+        topicId: selectedTopic === 'random' ? 'random' : selectedTopic.id
+      }));
+      setQuestions(formattedQuestions);
       setStep('quiz');
     } else {
       alert("Erreur lors de la génération du quiz. Réessaie !");

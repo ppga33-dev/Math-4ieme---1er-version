@@ -157,6 +157,7 @@ export const MATH_TOPICS: MathTopic[] = [
       formulas: [
         'Volume Pyramide = (1/3) × Aire de la base × Hauteur',
         'Volume Cône = (1/3) × π × r² × h',
+        'Aire latérale Cône = π × r × g (g = apothème)',
         'Volume Cylindre = π × r² × h'
       ],
       definitions: [

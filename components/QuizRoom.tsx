@@ -14,6 +14,7 @@ interface QuizRoomProps {
 
 const QuizRoom: React.FC<QuizRoomProps> = ({ topic, onClose, onComplete, breadcrumbs }) => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Exercise[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -28,17 +29,28 @@ const QuizRoom: React.FC<QuizRoomProps> = ({ topic, onClose, onComplete, breadcr
 
   const fetchQuiz = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await generateQuiz(topic.title);
-      if (isMounted.current && data) {
-        setQuestions(data);
+      if (isMounted.current) {
+        if (data && Array.isArray(data) && data.length > 0) {
+          const formattedQuestions: Exercise[] = data.map((q: any, index: number) => ({
+            ...q,
+            id: `quiz-${topic.id}-${index}-${Date.now()}`,
+            topicId: topic.id
+          }));
+          setQuestions(formattedQuestions);
+        } else {
+          setError("Impossible de générer le quiz. Réessaie !");
+        }
       }
-    } catch (error) {
-      console.error("Quiz fetch failed", error);
+    } catch (err) {
+      console.error("Quiz fetch failed", err);
+      if (isMounted.current) setError("Une erreur est survenue lors de la connexion.");
     } finally {
       if (isMounted.current) setLoading(false);
     }
-  }, [topic.title]);
+  }, [topic.id, topic.title]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -103,6 +115,22 @@ const QuizRoom: React.FC<QuizRoomProps> = ({ topic, onClose, onComplete, breadcr
           </div>
           <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Défi IA en cours...</h3>
           <p className="text-slate-500 font-medium text-sm">Je prépare tes 5 questions sur mesure.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-6">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl text-center max-w-sm w-full border border-white/20">
+          <div className="text-4xl mb-6">⚠️</div>
+          <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">Oups !</h3>
+          <p className="text-slate-500 font-medium text-sm mb-8">{error}</p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-black uppercase tracking-widest text-[10px]">Fermer</button>
+            <button onClick={fetchQuiz} className="flex-1 py-4 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-orange-100">Réessayer</button>
+          </div>
         </div>
       </div>
     );
