@@ -35,3 +35,33 @@ export const isTopicDownloaded = (topicId: string): boolean => {
   const all = getAllOfflineContent();
   return !!all[topicId];
 };
+
+const PENDING_ATTEMPTS_KEY = 'mathelite_pending_attempts';
+
+export interface PendingAttempt {
+  type: 'exercise' | 'quiz' | 'lesson' | 'game';
+  topicId: string;
+  points?: number;
+  score?: number;
+  total?: number;
+  timestamp: number;
+}
+
+export const savePendingAttempt = (attempt: PendingAttempt) => {
+  const existing = getPendingAttempts();
+  localStorage.setItem(PENDING_ATTEMPTS_KEY, JSON.stringify([...existing, attempt]));
+};
+
+export const getPendingAttempts = (): PendingAttempt[] => {
+  const data = localStorage.getItem(PENDING_ATTEMPTS_KEY);
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return [];
+  }
+};
+
+export const clearPendingAttempts = () => {
+  localStorage.removeItem(PENDING_ATTEMPTS_KEY);
+};

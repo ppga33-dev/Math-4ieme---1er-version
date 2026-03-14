@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MathTopic, Exercise } from '../types';
 import { generateQuiz } from '../services/geminiService';
+import { getOfflineContent, savePendingAttempt } from '../services/offlineService';
 import { useMathAudio } from '../hooks/useMathAudio';
 import Breadcrumbs from './Breadcrumbs';
 
@@ -30,6 +31,15 @@ const QuizRoom: React.FC<QuizRoomProps> = ({ topic, onClose, onComplete, breadcr
   const fetchQuiz = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    // Check offline content first if offline or as a fallback
+    const offlineContent = getOfflineContent(topic.id);
+    if (!navigator.onLine && offlineContent?.quiz) {
+      setQuestions(offlineContent.quiz);
+      setLoading(false);
+      return;
+    }
+
     try {
       const data = await generateQuiz(topic.title);
       if (isMounted.current) {
@@ -40,13 +50,20 @@ const QuizRoom: React.FC<QuizRoomProps> = ({ topic, onClose, onComplete, breadcr
             topicId: topic.id
           }));
           setQuestions(formattedQuestions);
+        } else if (offlineContent?.quiz) {
+          // Fallback to offline quiz if online generation fails
+          setQuestions(offlineContent.quiz);
         } else {
           setError("Impossible de générer le quiz. Réessaie !");
         }
       }
     } catch (err) {
       console.error("Quiz fetch failed", err);
-      if (isMounted.current) setError("Une erreur est survenue lors de la connexion.");
+      if (offlineContent?.quiz) {
+        setQuestions(offlineContent.quiz);
+      } else if (isMounted.current) {
+        setError("Une erreur est survenue lors de la connexion.");
+      }
     } finally {
       if (isMounted.current) setLoading(false);
     }
@@ -91,6 +108,15 @@ const QuizRoom: React.FC<QuizRoomProps> = ({ topic, onClose, onComplete, breadcr
 
   const handleFinish = () => {
     stop();
+    if (!navigator.onLine) {
+      savePendingAttempt({
+        type: 'quiz',
+        topicId: topic.id,
+        score,
+        total: questions.length,
+        timestamp: Date.now()
+      });
+    }
     onComplete(score, questions.length);
     onClose();
   };

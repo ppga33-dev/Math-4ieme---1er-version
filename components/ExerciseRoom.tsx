@@ -8,7 +8,7 @@ import {
 } from '../services/geminiService';
 import { useMathAudio } from '../hooks/useMathAudio';
 import Breadcrumbs from './Breadcrumbs';
-import { getOfflineContent } from '../services/offlineService';
+import { getOfflineContent, savePendingAttempt } from '../services/offlineService';
 import { WifiOff } from 'lucide-react';
 
 interface ExerciseRoomProps {
@@ -112,6 +112,14 @@ const ExerciseRoom: React.FC<ExerciseRoomProps> = memo(({ topic, onClose, onComp
 
   const handleNextQuestion = () => {
     if (selectedOption === exercise?.correctAnswer) {
+      if (!navigator.onLine) {
+        savePendingAttempt({
+          type: 'exercise',
+          topicId: topic.id,
+          points: 10,
+          timestamp: Date.now()
+        });
+      }
       onComplete(10);
     }
     fetchExercise();

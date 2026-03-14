@@ -6,7 +6,7 @@ import { useMathAudio } from '../hooks/useMathAudio';
 import { motion, AnimatePresence } from 'motion/react';
 import Breadcrumbs from './Breadcrumbs';
 import { BookOpen, Lightbulb, Pencil, ChevronRight, ChevronLeft, Sparkles, CheckCircle2, XCircle, MessageSquare, Play, WifiOff } from 'lucide-react';
-import { getOfflineContent } from '../services/offlineService';
+import { getOfflineContent, savePendingAttempt } from '../services/offlineService';
 
 interface LessonProps {
   topic: MathTopic;
@@ -86,6 +86,14 @@ const Lesson: React.FC<LessonProps> = ({ topic, onClose, onComplete, breadcrumbs
 
   const handleFinish = () => {
     const points = selectedOption === exercise?.correctAnswer ? 50 : 20;
+    if (!navigator.onLine) {
+      savePendingAttempt({
+        type: 'lesson',
+        topicId: topic.id,
+        points,
+        timestamp: Date.now()
+      });
+    }
     onComplete(points);
     onClose();
   };

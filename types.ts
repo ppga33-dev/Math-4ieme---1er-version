@@ -40,6 +40,7 @@ export interface OfflineContent {
     example: string;
   };
   exercises: Exercise[];
+  quiz?: Exercise[];
   lastUpdated: string;
 }
 

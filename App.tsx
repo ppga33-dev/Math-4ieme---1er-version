@@ -6,9 +6,9 @@ import TopicCard from './components/TopicCard';
 import StatsOverview from './components/StatsOverview';
 import GlobalProgressBar from './components/GlobalProgressBar';
 import Breadcrumbs from './components/Breadcrumbs';
-import { Search, X, Menu, Home, Download, CloudOff, CheckCircle, RotateCcw, PlayCircle, BookOpen } from 'lucide-react';
-import { getMathExplanation, getMathExample, generateExercise } from './services/geminiService';
-import { saveOfflineContent, isTopicDownloaded, removeOfflineContent } from './services/offlineService';
+import { Search, X, Menu, Home, Download, CloudOff, CheckCircle, RotateCcw, PlayCircle, BookOpen, ChevronDown, ChevronRight } from 'lucide-react';
+import { getMathExplanation, getMathExample, generateExercise, generateQuiz } from './services/geminiService';
+import { getOfflineContent, isTopicDownloaded, removeOfflineContent, saveOfflineContent, getPendingAttempts, clearPendingAttempts } from './services/offlineService';
 
 const MathAssistant = lazy(() => import('./components/MathAssistant'));
 const ExerciseRoom = lazy(() => import('./components/ExerciseRoom'));
@@ -91,6 +91,15 @@ const App: React.FC = () => {
   const [showGame, setShowGame] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
   const [downloadingTopicId, setDownloadingTopicId] = useState<string | null>(null);
   const [lastActivity, setLastActivity] = useState<LastActivity | null>(() => {
     const saved = localStorage.getItem('mathelite_last_activity');
@@ -112,6 +121,55 @@ const App: React.FC = () => {
     }));
     setTopics(merged);
   }, [stats]);
+
+  // Sync offline progress when coming back online
+  useEffect(() => {
+    const syncOfflineProgress = () => {
+      const pending = getPendingAttempts();
+      if (pending.length === 0) return;
+
+      setStats(prev => {
+        let newStats = { ...prev };
+        pending.forEach(attempt => {
+          if (attempt.points) {
+            newStats.totalPoints += attempt.points;
+          }
+          if (attempt.score !== undefined && attempt.total !== undefined) {
+            const quizPoints = Math.round((attempt.score / attempt.total) * 100);
+            newStats.totalPoints += quizPoints;
+          }
+          
+          // Update topic mastery
+          const currentMastery = newStats.topicMastery[attempt.topicId] || 0;
+          newStats.topicMastery[attempt.topicId] = Math.min(100, currentMastery + 5);
+
+          // Add to history
+          newStats.history.unshift({
+            id: `offline-${attempt.timestamp}`,
+            type: attempt.type,
+            topicId: attempt.topicId,
+            points: attempt.points || (attempt.score !== undefined ? Math.round((attempt.score / attempt.total!) * 100) : 0),
+            timestamp: new Date(attempt.timestamp).toISOString()
+          });
+        });
+        
+        // Limit history
+        newStats.history = newStats.history.slice(0, 50);
+        return newStats;
+      });
+
+      clearPendingAttempts();
+      console.log(`Synced ${pending.length} offline activities.`);
+    };
+
+    window.addEventListener('online', syncOfflineProgress);
+    // Also try to sync on mount if online
+    if (navigator.onLine) {
+      syncOfflineProgress();
+    }
+
+    return () => window.removeEventListener('online', syncOfflineProgress);
+  }, []);
 
   const groupedTopics = useMemo(() => {
     return topics.reduce((acc, topic) => {
@@ -197,12 +255,13 @@ const App: React.FC = () => {
 
     setDownloadingTopicId(topic.id);
     try {
-      const [explanation, example, ex1, ex2, ex3] = await Promise.all([
+      const [explanation, example, ex1, ex2, ex3, quizData] = await Promise.all([
         getMathExplanation(topic.title, "Cours complet pour accès hors ligne."),
         getMathExample(topic.title),
         generateExercise(topic.title),
         generateExercise(topic.title),
-        generateExercise(topic.title)
+        generateExercise(topic.title),
+        generateQuiz(topic.title)
       ]);
 
       if (explanation && example && ex1 && ex2 && ex3) {
@@ -210,6 +269,7 @@ const App: React.FC = () => {
           topicId: topic.id,
           lesson: { content: explanation, example },
           exercises: [ex1, ex2, ex3],
+          quiz: quizData || undefined,
           lastUpdated: new Date().toISOString()
         });
         setTopics(prev => prev.map(t => t.id === topic.id ? { ...t, isDownloaded: true } : t));
@@ -321,33 +381,71 @@ const App: React.FC = () => {
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Plateforme 4ième IA</p>
         </div>
         
-        <nav className="flex-1 px-4 space-y-2">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
-            { id: 'history', label: 'Mes Progrès', icon: '📈' },
-            { id: 'search', label: 'Bibliothèque', icon: '🌐' },
-            { id: 'quiz-ia', label: 'Quiz IA', icon: '⚡' },
-            { id: 'profile', label: 'Mon Profil', icon: '👤' }
-          ].map(item => (
-            <button 
-              key={item.id}
-              onClick={() => {
-                if (item.id === 'quiz-ia') {
-                  setShowStandaloneQuiz(true);
-                } else {
-                  setCurrentView(item.id as any);
-                }
-                setIsSidebarOpen(false);
-              }} 
-              className={`w-full flex items-center gap-4 px-5 py-4 text-sm font-black rounded-2xl transition-all ${
-                currentView === item.id 
-                ? 'text-blue-700 bg-blue-50 shadow-sm ring-1 ring-blue-100' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-              }`}
-            >
-              <span className="text-xl">{item.icon}</span> {item.label}
-            </button>
-          ))}
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
+          <div className="mb-4">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 mb-2">Menu Principal</p>
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+              { id: 'history', label: 'Mes Progrès', icon: '📈' },
+              { id: 'search', label: 'Bibliothèque', icon: '🌐' },
+              { id: 'quiz-ia', label: 'Quiz IA', icon: '⚡' },
+              { id: 'profile', label: 'Mon Profil', icon: '👤' }
+            ].map(item => (
+              <button 
+                key={item.id}
+                onClick={() => {
+                  if (item.id === 'quiz-ia') {
+                    setShowStandaloneQuiz(true);
+                  } else {
+                    setCurrentView(item.id as any);
+                  }
+                  setIsSidebarOpen(false);
+                }} 
+                className={`w-full flex items-center gap-4 px-5 py-3 text-sm font-black rounded-2xl transition-all ${
+                  currentView === item.id 
+                  ? 'text-blue-700 bg-blue-50 shadow-sm ring-1 ring-blue-100' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                }`}
+              >
+                <span className="text-xl">{item.icon}</span> {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 mb-2">Sujets par Catégorie</p>
+            {(Object.entries(groupedTopics) as [string, MathTopic[]][]).map(([category, categoryTopics]) => (
+              <div key={category} className="space-y-1">
+                <button
+                  onClick={() => toggleCategory(category)}
+                  className="w-full flex items-center justify-between px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50 rounded-2xl transition-all"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-lg">📁</span>
+                    <span className="truncate">{category}</span>
+                  </div>
+                  {expandedCategories[category] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+                
+                {expandedCategories[category] && (
+                  <div className="pl-12 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                    {categoryTopics.map(topic => (
+                      <button
+                        key={topic.id}
+                        onClick={() => {
+                          handleTopicClick(topic);
+                          setIsSidebarOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-bold text-slate-500 hover:text-blue-600 hover:bg-blue-50/50 rounded-xl transition-all truncate"
+                      >
+                        {topic.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </nav>
 
         <div className="p-6 mt-auto">
